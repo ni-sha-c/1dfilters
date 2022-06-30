@@ -1,6 +1,6 @@
 include("../examples/sawtooth.jl")
 using JLD
-σ_o = 0.1
+σ_o = 0.05
 function generate_data(T, s)
 	x = rand(T)
 	y = rand(T)
@@ -64,6 +64,7 @@ end
 function assimilate(N, Nthr, τ, T, s)
 	x_t, y = generate_data(T, s)
 	x = rand(N)
+	x .= forecast(x, s, 1000)
 	w = ones(N)/N
 	x_pr, w_pr = sir(x,y,w,τ,T,N,Nthr,s)
 	return x_pr, w_pr, x_t, y 
