@@ -28,10 +28,13 @@ function posterior(xarr, y)
 end
 function opt_tran(c_pr, c_po, x)
 	Tx = similar(x)
-	for (k, cmf) in c_pr
-
-	
-
+	for (k, cmff) in enumerate(c_pr)
+		for (l, cmf) in enumerate(c_po)
+			if cmf >= cmff
+				break
+			end
+		end
+		Tx[k] = linear_approx(cmf, x, l)
 	end
 	return Tx
 end
