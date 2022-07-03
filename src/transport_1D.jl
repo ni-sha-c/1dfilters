@@ -11,7 +11,7 @@ function generate_data(T, s)
 	end
 	return x, y
 end
-function p_y_g_x(a)
+function log_likelihood(a)
 		return log(1/sqrt(2π)/σ_o) -0.5*a*a/σ_o/σ_o
 end
 function cdf(x, xarr)
@@ -21,14 +21,26 @@ end
 function posterior(xarr, y)
 	N = size(xarr)[1]
 	a_n = y .- xarr
-	lklhd = p_y_g_x.(a_n)
-	prob = (1/N)*lklhd
+	lklhd = log_likelihood.(a_n)
+	prob = (1/N)*exp.(lklhd)
 	prob ./= sum(prob)
 	return prob
 end
-function rearrange(x_pr, post_pr)
-	x_post = 
+function opt_tran(c_pr, c_po, x)
+	Tx = similar(x)
+	for (k, cmf) in c_pr
 
+	
+
+	end
+	return Tx
+end
+function transport_map(x_pr, post_pr)
+	N = size(x_pr)[1]
+	pr_pr = (1/N)*ones(N)
+	cmf_pr = cumsum(pr_pr)
+	cmf_post = cumsum(post_pr)
+	return opt_tran(cmf_pr, cmf_post, x_pr)
 end
 function analysis(y, x)
 	
