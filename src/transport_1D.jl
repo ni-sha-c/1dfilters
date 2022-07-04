@@ -26,6 +26,18 @@ function posterior(xarr, y)
 	prob ./= sum(prob)
 	return prob
 end
+function linear_approx_of_cmf(x1, x2, c1, c2, c)
+	return (c - c1)/(c2 - c1)*(x2 - x1) + x1
+end
+function get_tran(cmf, x, pos, cmff)
+	insert!(cmf, 1, 0)
+	push!(cmf, 1.0)
+	insert!(x, 1, 0)
+	push!(x, 1)
+	x1, x2 = x[pos], x[pos+1]
+	c1, c2 = cmf[pos], cmf[pos+1]
+	return linear_approx_of_cmf(x1, x2, c1, c2, cmff)
+end
 function opt_tran(c_pr, c_po, x)
 	Tx = similar(x)
 	for (k, cmff) in enumerate(c_pr)
@@ -34,7 +46,7 @@ function opt_tran(c_pr, c_po, x)
 				break
 			end
 		end
-		Tx[k] = linear_approx(cmf, x, l)
+		Tx[k] = get_tran(cmf, x, l, cmff)
 	end
 	return Tx
 end
