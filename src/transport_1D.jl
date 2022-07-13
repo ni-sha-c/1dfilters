@@ -1,19 +1,3 @@
-include("../examples/sawtooth.jl")
-using JLD
-σ_o = 0.05
-function generate_data(T, s)
-	x = rand(T)
-	y = rand(T)
-	y[1] = (x[1] + σ_o*randn())%1
-	for k = 1:(T-1)
-		x[k+1] = next(x[k], s)
-		y[k+1] = (x[k+1] + σ_o*randn())%1
-	end
-	return x, y
-end
-function log_likelihood(a)
-		return log(1/sqrt(2π)/σ_o) -0.5*a*a/σ_o/σ_o
-end
 function cdf(x, xarr)
 	N = size(xarr)[1]
 	return 1/N*sum(xarr .<= x)
@@ -65,20 +49,9 @@ function transport_map(x_pr, post_pr)
 	cmf_post = cumsum(post_pr)
 	return opt_tran(cmf_pr, cmf_post, x_pr)
 end
-function analysis(y, x)
-	
-end
 function transport_analysis(y, x)
 	post_pr = posterior(x, y)
 	return transport_map(x, post_pr)
-end
-
-
-function forecast(x, s, τ)
-	for t = 1:τ
-		x .= next.(x, s)
-	end
-	return x
 end
 function transport_filter(x,y,τ,T,N,s)
 	x_pr = zeros(N,T)
