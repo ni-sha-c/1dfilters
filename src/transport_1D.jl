@@ -30,23 +30,31 @@ function linear_approx_of_cmf(x1, x2, c1, c2, c)
 	return (c - c1)/(c2 - c1)*(x2 - x1) + x1
 end
 function get_tran(cmf, x, pos, cmff)
-	insert!(cmf, 1, 0)
-	push!(cmf, 1.0)
-	insert!(x, 1, 0)
-	push!(x, 1)
-	x1, x2 = x[pos], x[pos+1]
-	c1, c2 = cmf[pos], cmf[pos+1]
+	cmf_temp = copy(cmf)
+	x_temp = copy(x)
+	insert!(cmf_temp, 1, 0)
+	push!(cmf_temp, 1.0)
+	insert!(x_temp, 1, 0)
+	push!(x_temp, 1)
+	@show cmf_temp, x_temp
+	x1, x2 = x_temp[pos], x_temp[pos+1]
+
+	c1, c2 = cmf_temp[pos], cmf_temp[pos+1]
 	return linear_approx_of_cmf(x1, x2, c1, c2, cmff)
 end
 function opt_tran(c_pr, c_po, x)
 	Tx = similar(x)
+	f_c = 0
+	pos = 1
 	for (k, cmff) in enumerate(c_pr)
 		for (l, cmf) in enumerate(c_po)
 			if cmf >= cmff
+				f_c = cmff
+				pos = l
 				break
 			end
 		end
-		Tx[k] = get_tran(cmf, x, l, cmff)
+		Tx[k] = get_tran(c_po, x, pos, f_c)
 	end
 	return Tx
 end
@@ -60,6 +68,10 @@ end
 function analysis(y, x)
 	
 end
+function transport_analysis(y, x)
+	post_pr = posterior(x, y)
+	return transport_map(x, post_pr)
+end
 
 
 function forecast(x, s, τ)
@@ -72,7 +84,7 @@ function transport_filter(x,y,τ,T,N,s)
 	x_pr = zeros(N,T)
 	for t = 1:T
 		x .= forecast(x, s, τ)
-		x .= analysis(y[t], x)
+		x .= transport_analysis(y[t], x)
 		x_pr[:,t] .= x
     end
 	return x_pr
