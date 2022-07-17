@@ -13,7 +13,7 @@ function resample(x,w)
     end
 	return new_pts
 end
-function analysis(w, y, x)
+function analysis_sir(w, y, x)
     N_p = size(x)[1]
 	lw = log.(w)
 	for k = 1:N_p
@@ -24,12 +24,12 @@ function analysis(w, y, x)
 	return w1
 end
 
-function sir(x,y,w,τ,T,N,N_thr,s)
+function sir_filter(x,y,w,τ,T,N,N_thr,s)
 	x_pr = zeros(N,T)
 	w_pr = zeros(N,T)
 	for t = 1:T
 		x .= forecast(x, s, τ)
-		w .= analysis(w, y[t], x)
+		w .= analysis_sir(w, y[t], x)
 		N_eff = 1.0/sum(w.*w)
         if (N_eff < N_thr)
 			x .= resample(x,w)
@@ -39,6 +39,7 @@ function sir(x,y,w,τ,T,N,N_thr,s)
     end
 	return x_pr, w_pr
 end
+#=
 function assimilate(N, Nthr, τ, T, s)
 	x_t, y = generate_data(T, s)
 	x = rand(N)
@@ -47,6 +48,6 @@ function assimilate(N, Nthr, τ, T, s)
 	x_pr, w_pr = sir(x,y,w,τ,T,N,Nthr,s)
 	return x_pr, w_pr, x_t, y 
 end
-
+=#
 
 

@@ -21,4 +21,11 @@ function forecast(x, s, τ)
 	end
 	return x
 end
+function assimilate(N, Nthr, τ, T, s)
+	x_t, y = generate_data(T, s)
+	x = rand(N)
+	x .= forecast(x, s, 1000)
+	x_pr = transport_filter(x,y,τ,T,N,s)
+	return x_pr, x_t, y 
+end
 
