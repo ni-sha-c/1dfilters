@@ -2,6 +2,29 @@ include("../src/filter.jl")
 include("../src/transport_1D.jl")
 include("../src/sir_1D.jl")
 using PyPlot
+function get_rmse_transport(T,s,τ,N)
+	x_t, y = generate_data(T,s)
+	x = rand(N)
+	x .= forecast(x, s, 1000)
+	sort!(x)
+
+	rmse = 0.0
+	for t = 1:T
+		x .= forecast(x, s, τ)
+		x .= transport_analysis(y[t],x)
+		rmse += (x_t[t] - sum(x)/N)^2	
+	end
+	rmse = sqrt(rmse/T)
+	return rmse
+end
+function rmse_vs_Np_transport(NNp,T,s,τ)
+	Np_arr = Int64.(LinRange(100,5000,NNp)) 
+	rmse_arr = zeros(NNp)
+	for j = 1:NNp
+			rmse_arr[j] = get_rmse_transport(T,s,τ,Np_arr[j])
+	end
+	return rmse_arr
+end
 function run_algs(T,s,N,τ,N_th)
 	x_t, y = generate_data(T,s)
 	x = rand(N)
