@@ -18,12 +18,37 @@ function get_rmse_transport(T,s,τ,N)
 	return rmse
 end
 function rmse_vs_Np_transport(NNp,T,s,τ)
-	Np_arr = Int64.(LinRange(100,5000,NNp)) 
+	Np_arr = round.(Int64, LinRange(100,10000,NNp)) 
 	rmse_arr = zeros(NNp)
 	for j = 1:NNp
 			rmse_arr[j] = get_rmse_transport(T,s,τ,Np_arr[j])
 	end
 	return rmse_arr
+end
+function plot_transport(T,s,N,τ)
+	x_t, y = generate_data(T,s)
+	x = rand(N)
+	x .= forecast(x, s, 1000)
+	sort!(x)
+	Tx = similar(x)
+	fig, ax = subplots()
+	ax.xaxis.set_tick_params(labelsize=38)
+	ax.yaxis.set_tick_params(labelsize=38)
+	ax.set_xlabel("x",fontsize=38)
+	ax.set_ylabel("T(x)",fontsize=38)
+
+	for t = 1:T
+		@show t
+		x .= forecast(x, s, τ)
+		sort!(x)
+		Tx .= transport_analysis(y[t],x)
+		if t > 2
+			ax.plot(Tx, x, lw=4.0, label=string("t = ", t))
+		end
+		x .= Tx
+	end
+	ax.legend(fontsize=30)
+	ax.grid(true)
 end
 function run_algs(T,s,N,τ,N_th)
 	x_t, y = generate_data(T,s)

@@ -20,7 +20,7 @@ function get_tran(cmf, x, pos, cmff)
 	push!(cmf_temp, 1.0)
 	insert!(x_temp, 1, 0)
 	push!(x_temp, 1)
-	@show cmf_temp, x_temp
+	#@show cmf_temp, x_temp
 	x1, x2 = x_temp[pos], x_temp[pos+1]
 
 	c1, c2 = cmf_temp[pos], cmf_temp[pos+1]
