@@ -26,7 +26,7 @@ function rmse_vs_Np_transport(NNp,T,s,τ)
 	return rmse_arr
 end
 function plot_transport(T,s,N,τ)
-	x_t, y = generate_data(T,s)
+	x_t, y = generate_data(T,s,τ)
 	x = rand(N)
 	x .= forecast(x, s, 1000)
 	sort!(x)
@@ -35,15 +35,16 @@ function plot_transport(T,s,N,τ)
 	ax.xaxis.set_tick_params(labelsize=38)
 	ax.yaxis.set_tick_params(labelsize=38)
 	ax.set_xlabel("x",fontsize=38)
-	ax.set_ylabel("T(x)",fontsize=38)
+	ax.set_ylabel(L"T^{-1}(x)",fontsize=38)
 
 	for t = 1:T
 		@show t
 		x .= forecast(x, s, τ)
 		sort!(x)
 		Tx .= transport_analysis(y[t],x)
-		if t > 2
+		if t > 3
 			ax.plot(Tx, x, lw=4.0, label=string("t = ", t))
+			ax.plot(Tx, forecast(Tx,s,1), lw=4.0, label=string("t = ", t, " dynamics"))
 		end
 		x .= Tx
 	end

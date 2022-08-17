@@ -2,12 +2,13 @@ include("../examples/sawtooth.jl")
 using JLD
 σ_o = 0.05
 
-function generate_data(T, s)
+function generate_data(T, s, τ=1)
 	x = rand(T)
 	y = rand(T)
 	y[1] = (x[1] + σ_o*randn())%1
 	for k = 1:(T-1)
-		x[k+1] = next(x[k], s)
+		x0 = x[k]
+		x[k+1] = forecast([x0], s, τ)[1]
 		y[k+1] = (x[k+1] + σ_o*randn())%1
 	end
 	return x, y
@@ -15,7 +16,8 @@ end
 function log_likelihood(a)
 		return log(1/sqrt(2π)/σ_o) -0.5*a*a/σ_o/σ_o
 end
-function forecast(x, s, τ)
+function forecast(x0, s, τ)
+	x = copy(x0)
 	for t = 1:τ
 		x .= next.(x, s)
 	end

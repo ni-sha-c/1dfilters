@@ -1,4 +1,4 @@
-m = 16
+m = 4
 function next(x,s)
 		return (2*x + s*sin(m*x)/m) %1
 end
