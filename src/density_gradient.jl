@@ -6,7 +6,7 @@ next(x, s) = (2*x + s*sin(16*x)/16) % 1
 function hist_single_orbit(rho, ntime, nbins, s)
     x = rand()
 	index = threadIdx().x + (blockIdx().x - 1) * blockDim().x 
-    for t = 1:100
+    for t = 1:500
 		x = next(x,s)
 	end
 	for t = 1:ntime
