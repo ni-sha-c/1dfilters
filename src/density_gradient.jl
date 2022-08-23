@@ -23,8 +23,19 @@ function post_process_rho(rho, nbins, ntime, nsamples, nrep)
 	end
 	return r	
 end
+function post_process_g(rho, nbins, ntime, nsamples, nrep)
+	dlogr = zeros(nbins)
+    r = post_process_rho(rho, nbins, ntime, nsamples, nrep)
+	logr = log.(r)
+	for i = 2:nbins-1
+		dlogr[i] = (logr[i+1] - logr[i-1])/2*nbins
+	end
+    dlogr[1] =  (logr[2] - logr[1])*nbins
+    dlogr[nbins] =  (logr[nbins] - logr[nbins-1])*nbins
+	return dlogr	
+end
+
 function get_emp_den(nbins, ntime, nsamples, nrep, s)
-	
 	nrho = nsamples * nbins
 	rho = CUDA.fill(0.0f0, nrho)
 	threads = min(nsamples, 1024)
@@ -38,4 +49,19 @@ function get_emp_den(nbins, ntime, nsamples, nrep, s)
 	end	
 	rho_final = post_process_rho(rho, nbins, ntime, nsamples, nrep)
 	return rho_final
+end
+function get_den_grad(nbins, ntime, nsamples, nrep, s)
+	nrho = nsamples * nbins
+	rho = CUDA.fill(0.0f0, nrho)
+	threads = min(nsamples, 1024)
+	blocks = cld(nsamples, threads)
+
+	@show threads, blocks
+	for n = 1:nrep
+		CUDA.@sync begin
+			@cuda threads=threads blocks=blocks hist_single_orbit(rho, ntime, nbins, s)
+		end
+	end	
+	g = post_process_g(rho, nbins, ntime, nsamples, nrep)
+	return g
 end
