@@ -3,6 +3,8 @@ using Test
 using BenchmarkTools
 
 next(x, s) = (2*x + s*sin(16*x)/16) % 1
+dnext(x, s) = abs(2 + s*cos(16*x))
+d2next(x, s) = abs(16*s*sin(16*x))
 function hist_single_orbit(rho, ntime, nbins, s)
     x = rand()
 	index = threadIdx().x + (blockIdx().x - 1) * blockDim().x 
@@ -64,4 +66,29 @@ function get_den_grad(nbins, ntime, nsamples, nrep, s)
 	end	
 	g = post_process_g(rho, nbins, ntime, nsamples, nrep)
 	return g
+end
+function next_g(g, x, s)
+	# takes g(x) and returns g(next(x,s))
+	a = dnext(x, s) 
+	c = d2next(x, s) 
+	g = g/a - c/a/a
+	return g
+end
+function get_den_grad_cpu(norbit, s)
+	x = rand()
+	g = 0.0
+	for t = 1:500
+		g = next_g(g, x, s)
+		x = next(x, s)
+	end
+	orbit = zeros(norbit)
+	g_orbit = zeros(norbit)
+	
+	for t = 1:norbit
+		g_orbit[t] = g
+		orbit[t] = x
+		g = next_g(g, x, s)
+		x = next(x, s)
+	end
+	return orbit, g_orbit
 end
