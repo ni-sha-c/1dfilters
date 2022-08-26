@@ -28,7 +28,8 @@ end
 function post_process_g(rho, nbins, ntime, nsamples, nrep)
 	dlogr = zeros(nbins)
     r = post_process_rho(rho, nbins, ntime, nsamples, nrep)
-	logr = log.(r)
+	#logr = log.(r)
+	logr = r
 	for i = 2:nbins-1
 		dlogr[i] = (logr[i+1] - logr[i-1])/2*nbins
 	end
@@ -74,7 +75,16 @@ function next_g(g, x, s)
 	g = g/a - c/a/a
 	return g
 end
-function get_den_grad_cpu(norbit, s)
+function post_process_g_cpu(x, g, nbins)
+    g_gr = zeros(nbins)
+    ntime = length(g)
+	for t = 1:ntime
+		bin_t = Int(cld(x[t], 1/nbins))
+		g_gr[bin_t] += g[t]*nbins/ntime
+	end
+	return g_gr
+end
+function get_den_grad_cpu(norbit, nbins, s)
 	x = rand()
 	g = 0.0
 	for t = 1:500
@@ -90,5 +100,6 @@ function get_den_grad_cpu(norbit, s)
 		g = next_g(g, x, s)
 		x = next(x, s)
 	end
-	return orbit, g_orbit
+	g_gr = post_process_g_cpu(orbit, g_orbit, nbins)
+	return g_gr
 end
