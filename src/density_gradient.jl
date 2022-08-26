@@ -4,7 +4,7 @@ using BenchmarkTools
 
 next(x, s) = (2*x + s*sin(16*x)/16) % 1
 dnext(x, s) = abs(2 + s*cos(16*x))
-d2next(x, s) = abs(16*s*sin(16*x))
+d2next(x, s) = -16*s*sin(16*x)
 function hist_single_orbit(rho, ntime, nbins, s)
     x = rand()
 	index = threadIdx().x + (blockIdx().x - 1) * blockDim().x 
