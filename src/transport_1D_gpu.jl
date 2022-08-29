@@ -55,11 +55,11 @@ function get_emp_srb(nbins, ntime, nsamples, nrep, s)
 	return rho_final
 end
 function bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples)
-	index = threadIdx.x() + (blockIdx.x() - 1)*blockDim.x()
+	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
     x = fo_sa[index]
 	bin_no = Int(cld(x, 1/nbins)) 	
-	fo_gr[(index - 1)*nbins + bin_no] += 1/nsamples
-	lkhd = exp((y-x)^2)/(2*sig_obs*sig_obs)
+	fo_gr[(index - 1)*nbins + bin_no] += 1
+	lkhd = exp(-(y-x)^2) #/(2*sig_obs*sig_obs)
 	fi_gr[(index - 1)*nbins + bin_no] += lkhd
 	return nothing
 end
@@ -77,7 +77,7 @@ function post_process_fo_fi_cdfs(fo_gr, fi_gr, nbins)
 	return cdf, cdf_fo
 end
 
-function get_fo_fi_cdfs(rho_fo, y, nsamples, nbins)
+function get_fo_fi_cdfs(fo_sa, y, nsamples, nbins)
 	fo_gr = CUDA.fill(0.0f0, nbins*nsamples) 
 	fi_gr = CUDA.fill(0.0f0, nbins*nsamples)
 		
@@ -85,10 +85,14 @@ function get_fo_fi_cdfs(rho_fo, y, nsamples, nbins)
 	blocks = cld(nsamples, threads)
 
 	@show threads, blocks
-	for n = 1:nrep
-		CUDA.@sync begin
+	CUDA.@sync begin
 			@cuda threads=threads blocks=blocks bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples)
-		end
-	end	
-	cdf, cdf_fo = post_process_fo_fi_cdfs(fo_gr, fo_sa, nbins)
+	end
+	cdf, cdf_fo = post_process_fo_fi_cdfs(fo_gr, fi_gr, nbins)
 end
+function driver_cdfs(y, nsamples, nbins)
+	fo_sa = CUDA.rand(nsamples)
+    cdf, cdf_fo = get_fo_fi_cdfs(fo_sa, y, nsamples, nbins)
+	return cdf, cdf_fo
+end
+
