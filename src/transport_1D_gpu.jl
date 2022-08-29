@@ -54,12 +54,12 @@ function get_emp_srb(nbins, ntime, nsamples, nrep, s)
 	rho_final = post_process_rho(rho, nbins, ntime, nsamples, nrep)
 	return rho_final
 end
-function bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples)
+function bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples, sig)
 	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
     x = fo_sa[index]
 	bin_no = Int(cld(x, 1/nbins)) 	
 	fo_gr[(index - 1)*nbins + bin_no] += 1
-	lkhd = exp(-(y-x)^2) #/(2*sig_obs*sig_obs)
+	lkhd = exp(-(y-x)^2/(2*sig*sig))
 	fi_gr[(index - 1)*nbins + bin_no] += lkhd
 	return nothing
 end
@@ -83,10 +83,10 @@ function get_fo_fi_cdfs(fo_sa, y, nsamples, nbins)
 		
 	threads = min(nsamples, 1024)
 	blocks = cld(nsamples, threads)
-
+	sig = sig_obs
 	@show threads, blocks
 	CUDA.@sync begin
-			@cuda threads=threads blocks=blocks bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples)
+			@cuda threads=threads blocks=blocks bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples, sig)
 	end
 	cdf, cdf_fo = post_process_fo_fi_cdfs(fo_gr, fi_gr, nbins)
 end
