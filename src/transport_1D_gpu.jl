@@ -95,4 +95,37 @@ function driver_cdfs(y, nsamples, nbins)
     cdf, cdf_fo = get_fo_fi_cdfs(fo_sa, y, nsamples, nbins)
 	return cdf, cdf_fo
 end
+function tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, x_gr)
+	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
+	x = fo_sa[index]
+	i2f = findfirst(x_gr .> x)
+	Tx = x
+	if !(i2f == nothing)
+		x1f = (i2f > 1) ? x_gr[i2f - 1] : 0.0
+		x2f = x_gr[i2f]
+		c2f = cdf_fo[i2f]
+    	c1f = (i2f > 1) ? cdf_fo[i2f-1] : 0.0
+    	cf = c1f + (c2f - c1f)*(x - x1f)/(x2f - x1f)
 
+		i2 = findfirst(cdf .>= cf)
+    	x2 = x_gr[i2]
+    	x1 = (i2 > 1) ? x_gr[i2 - 1] : 0.0
+    	c1 = (i2 > 1) ? cdf[i2 - 1]: 0.0
+		c2 = cdf[i2]
+		Tx = (cf - c1)*(x2 - x1)/(c2 - c1) + x1
+	end
+	fi_sa[index] = Tx
+ 	return nothing
+end
+function transport(y, nsamples, nbins)
+	fo_sa = CUDA.rand(nsamples)
+	fi_sa = CUDA.fill(0.0f0, nsamples)
+	cdf, cdf_fo = get_fo_fi_cdfs(fo_sa, y, nsamples, nbins)	
+	x_gr = LinRange(1/(2*nbins), 1 - 1/(2*nbins), nbins)
+	threads = min(nsamples, 1024)
+	blocks = cld(nsamples, threads)
+	CUDA.@sync begin
+		@cuda threads=threads blocks=blocks tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, x_gr)
+	end
+	return fo_sa, fi_sa	
+end
