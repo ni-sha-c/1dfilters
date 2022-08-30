@@ -154,3 +154,23 @@ function transport(y, nsamples, nbins)
 	end
 	return fo_sa, fi_sa	
 end
+function evolve_dynamics(samples, ntime, s)
+	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
+	x = rand()
+	for i = 1:ntime
+		x = next(x,s)
+	end
+	samples[index] = x
+	return nothing
+end
+
+function get_srb_samples(nsamples, ntime, s)
+	samples = CUDA.fill(0.0f0, nsamples) 
+	threads = min(nsamples, 1024)
+	blocks = cld(nsamples, threads)
+	CUDA.@sync begin
+		@cuda threads=threads blocks=blocks evolve_dynamics(samples, ntime, s)
+	end
+	return samples
+end
+
