@@ -87,3 +87,21 @@ function plot_transport()
 		ax.grid(true)
 		#ax.legend(fontsize=30)
 end
+
+function plot_srb()
+		X = load("../data/srb_samples_0.1.jld")
+		x = X["x"]
+		
+
+		fig, ax = subplots()
+
+		ax.hist(x,bins=200,density=true)
+		
+		ax.set_xlabel("x", fontsize=30)
+		ax.set_ylabel(L"\mu(x)", fontsize=30)
+		ax.xaxis.set_tick_params(labelsize=30)
+		ax.yaxis.set_tick_params(labelsize=30)
+		ax.grid(true)
+		#ax.legend(fontsize=30)
+end
+
