@@ -64,8 +64,8 @@ function bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples, sig)
 	return nothing
 end
 function post_process_fo_fi_cdfs(fo_gr, fi_gr, nbins)
-	cdf = zeros(nbins)
-	cdf_fo = zeros(nbins)
+	cdf = zeros(Float32, nbins)
+	cdf_fo = zeros(Float32, nbins)
 
 	for i = 1:nbins
 		cdf[i] = sum(fi_gr[i:nbins:end])
@@ -95,24 +95,48 @@ function driver_cdfs(y, nsamples, nbins)
     cdf, cdf_fo = get_fo_fi_cdfs(fo_sa, y, nsamples, nbins)
 	return cdf, cdf_fo
 end
-function tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, x_gr)
+function tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins)
 	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
 	x = fo_sa[index]
-	i2f = findfirst(x_gr .> x)
+	i2f = Int(cld(x, 1/nbins))
+    x_mid = (i2f - 1)*(1/nbins) + 0.5/nbins
 	Tx = x
-	if !(i2f == nothing)
-		x1f = (i2f > 1) ? x_gr[i2f - 1] : 0.0
-		x2f = x_gr[i2f]
-		c2f = cdf_fo[i2f]
-    	c1f = (i2f > 1) ? cdf_fo[i2f-1] : 0.0
-    	cf = c1f + (c2f - c1f)*(x - x1f)/(x2f - x1f)
-
-		i2 = findfirst(cdf .>= cf)
-    	x2 = x_gr[i2]
-    	x1 = (i2 > 1) ? x_gr[i2 - 1] : 0.0
-    	c1 = (i2 > 1) ? cdf[i2 - 1]: 0.0
+	x1f, x2f = 0.0, 1.0
+	c1f, c2f = 0.0, 1.0
+	cf = 0.0
+	
+	if !(i2f == nbins)
+	
+		if x > x_mid 
+		
+			x1f = x_mid
+			x2f = x_mid + (1/nbins)
+		
+			c1f = cdf_fo[i2f]
+			c2f = cdf_fo[i2f + 1]
+		
+		else
+			x1f = max(x_mid - (1/nbins), 0)
+			x2f = x_mid
+			c1f = (i2f > 1) ? cdf_fo[i2f-1] : 0.0
+			c2f = cdf_fo[i2f]
+		
+		end
+	
+		cf = c1f + (c2f - c1f)*(x - x1f)/(x2f - x1f)
+		i2 = 0
+		for k = 1:nbins
+			if (cdf[k] .>= cf)
+				i2 = k
+				break
+			end
+		end
+		x2 = (i2 - 1)*(1/nbins) + 0.5/nbins
+		x1 = max(x2 - (1/nbins), 0)  
+    	c1 = (i2 > 1) ? cdf[i2 - 1] : 0.0
 		c2 = cdf[i2]
 		Tx = (cf - c1)*(x2 - x1)/(c2 - c1) + x1
+		
 	end
 	fi_sa[index] = Tx
  	return nothing
@@ -120,12 +144,13 @@ end
 function transport(y, nsamples, nbins)
 	fo_sa = CUDA.rand(nsamples)
 	fi_sa = CUDA.fill(0.0f0, nsamples)
-	cdf, cdf_fo = get_fo_fi_cdfs(fo_sa, y, nsamples, nbins)	
-	x_gr = LinRange(1/(2*nbins), 1 - 1/(2*nbins), nbins)
+	a_temp, b_temp = get_fo_fi_cdfs(fo_sa, y, nsamples, nbins)	
+	cdf = CuArray(a_temp)
+	cdf_fo = CuArray(b_temp)
 	threads = min(nsamples, 1024)
 	blocks = cld(nsamples, threads)
 	CUDA.@sync begin
-		@cuda threads=threads blocks=blocks tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, x_gr)
+		@cuda threads=threads blocks=blocks tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins)
 	end
 	return fo_sa, fi_sa	
 end
