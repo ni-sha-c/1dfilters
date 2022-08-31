@@ -5,7 +5,7 @@ using BenchmarkTools
 next(x, s) = (2*x + s*sin(16*x)/16) % 1
 dnext(x, s) = abs(2 + s*cos(16*x))
 d2next(x, s) = -16*s*sin(16*x)
-sig_obs = 0.1
+sig_obs = 0.05
 function hist_single_orbit(rho, ntime, nbins, s)
     x = rand()
 	index = threadIdx().x + (blockIdx().x - 1) * blockDim().x 
@@ -141,8 +141,7 @@ function tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins)
 	fi_sa[index] = Tx
  	return nothing
 end
-function transport(y, nsamples, nbins)
-	fo_sa = CUDA.rand(nsamples)
+function transport(fo_sa, y, nsamples, nbins)
 	fi_sa = CUDA.fill(0.0f0, nsamples)
 	a_temp, b_temp = get_fo_fi_cdfs(fo_sa, y, nsamples, nbins)	
 	cdf = CuArray(a_temp)
@@ -152,11 +151,11 @@ function transport(y, nsamples, nbins)
 	CUDA.@sync begin
 		@cuda threads=threads blocks=blocks tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins)
 	end
-	return fo_sa, fi_sa	
+	return fi_sa	
 end
 function evolve_dynamics(samples, ntime, s)
 	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
-	x = rand()
+	x = samples[index]
 	for i = 1:ntime
 		x = next(x,s)
 	end
@@ -165,7 +164,7 @@ function evolve_dynamics(samples, ntime, s)
 end
 
 function get_srb_samples(nsamples, ntime, s)
-	samples = CUDA.fill(0.0f0, nsamples) 
+	samples = CUDA.rand(Float32, nsamples) 
 	threads = min(nsamples, 1024)
 	blocks = cld(nsamples, threads)
 	CUDA.@sync begin
@@ -173,4 +172,23 @@ function get_srb_samples(nsamples, ntime, s)
 	end
 	return samples
 end
-
+function forecast(samples, nsamples, ntime, s)
+	threads = min(nsamples, 1024)
+	blocks = cld(nsamples, threads)
+	CUDA.@sync begin
+		@cuda threads=threads blocks=blocks evolve_dynamics(samples, ntime, s)
+	end
+	return nothing
+end
+function transport_filter(y, nsamples, ntime, ndtime, nbins, s)
+	x = get_srb_samples(nsamples, 100, s)
+	Sx = CUDA.fill(0.0f0, nsamples)
+	for t = 1:ntime
+		forecast(x, nsamples, ndtime, s)
+		if t==ntime
+			Sx .= x
+		end
+		x .= transport(x, y[t], nsamples, nbins)
+	end
+	return x, Sx
+end
