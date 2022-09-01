@@ -72,16 +72,16 @@ function plot_cdfs()
 end
 
 function plot_transport()
-		X = load("../data/fo_sa_fi_sa.jld")
+		X = load("../data/transport.jld")
 		x = X["x"]
-		Tx = X["Tx"]
+		Tx = X["Sx"]
 
 		fig, ax = subplots()
 
 		ax.plot(x[1:10:end], Tx[1:10:end], ".", ms=2.0)
 		
 		ax.set_xlabel("x", fontsize=30)
-		ax.set_ylabel("T(x)", fontsize=30)
+		ax.set_ylabel(L"T^{-1}(x)", fontsize=30)
 		ax.xaxis.set_tick_params(labelsize=30)
 		ax.yaxis.set_tick_params(labelsize=30)
 		ax.grid(true)
@@ -89,7 +89,7 @@ function plot_transport()
 end
 
 function plot_srb()
-		X = load("../data/srb_samples_0.1.jld")
+		X = load("../data/srb_samples_0.8.jld")
 		x = X["x"]
 		
 
@@ -104,4 +104,26 @@ function plot_srb()
 		ax.grid(true)
 		#ax.legend(fontsize=30)
 end
+function plot_transport_with_slopes()
+		X = load("../data/transport.jld")
+		x = X["x"]
+		Tx = X["Sx"]
+		dx = X["dx"]
+		fig, ax = subplots()
+
+		ax.plot(x[1:100:end], Tx[1:100:end], ".", ms=5.0)
+		epsi = 3.e-4
+		Txp = Tx[1:1000:end] .+ epsi.*dx[1:1000:end]
+		Txm = Tx[1:1000:end] .- epsi.*dx[1:1000:end]
+		xp = x[1:1000:end] .+ epsi
+		xm = x[1:1000:end] .- epsi
+		ax.plot([xm, xp], [Txm, Txp], "k-", alpha=0.5) 
+		ax.set_xlabel("x", fontsize=30)
+		ax.set_ylabel(L"T^{-1}(x)", fontsize=30)
+		ax.xaxis.set_tick_params(labelsize=30)
+		ax.yaxis.set_tick_params(labelsize=30)
+		ax.grid(true)
+		#ax.legend(fontsize=30)
+end
+
 
