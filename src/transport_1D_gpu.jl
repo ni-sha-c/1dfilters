@@ -223,9 +223,9 @@ function get_dx(x, dx, nsamples, s)
 	end
 	return nothing
 end
-function put_sample_in_bin(x, rho, dx, nbins)
+function put_sample_in_bin(x, rho, dx, nbins, a)
 	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
-	binx = Int(cld(x[index], dx))
+	binx = Int(cld(x[index]-a, dx))
 	rho[binx + (index-1)*nbins] += 1  
 	return nothing
 end
@@ -242,7 +242,7 @@ function bin_samples(x, rho, nsamples, nbins, a, b)
 	blocks = cld(nsamples, threads)
 	dx = (b-a)/nbins
 	CUDA.@sync begin
-		@cuda threads=threads blocks=blocks put_sample_in_bin(x, rho_unfolded, dx, nbins)
+		@cuda threads=threads blocks=blocks put_sample_in_bin(x, rho_unfolded, dx, nbins, a)
 	end
 	threads = min(nbins, 1024)
 	blocks = cld(nbins, threads)
@@ -261,7 +261,8 @@ function transport_filter_test(y, nsamples, ntime, ndtime, nbins, s, a, b)
 	for t = 1:ntime
 		if t==ntime
 			Sx .= x
-			bin_samples(Sx, rho_Tm1, nsamples, nbins, a, b)
+			a1, b1 = CUDA.minimum(Sx), CUDA.maximum(Sx)
+			bin_samples(Sx, rho_Tm1, nsamples, nbins, a1, b1)
 		end
 		forecast(x, nsamples, ndtime, s)
 		#if t==ntime
@@ -271,7 +272,8 @@ function transport_filter_test(y, nsamples, ntime, ndtime, nbins, s, a, b)
 		x .= transport(x, y[t], nsamples, nbins, a, b)
 		@show t
 	end
-	bin_samples(x, rho_T, nsamples, nbins, a, b)
+	a2, b2 = CUDA.minimum(x), CUDA.maximum(x)
+	bin_samples(x, rho_T, nsamples, nbins, a2, b2)
 	return x, Sx, rho_Tm1, rho_T
 end
 function generate_obs(ntime, s)
