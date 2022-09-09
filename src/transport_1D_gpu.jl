@@ -79,7 +79,7 @@ end
 function bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples, sig, a, b)
 	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
     x = fo_sa[index]
-	bin_no = Int(cld(x, (b-a)/nbins)) 	
+	bin_no = Int(cld(x-a, (b-a)/nbins)) 	
 	fo_gr[(index - 1)*nbins + bin_no] += 1
 	lkhd = exp(-(y-x)^2/(2*sig*sig))
 	#lkhd = abs(y-x) < sig ? 1.0 : 0.0
@@ -130,33 +130,27 @@ function tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins, a, b)
 	cf = 0.0
 	
 	if !(i2f == nbins)
-	
 		if x > x_mid 
-		
 			x1f = x_mid
-			x2f = x_mid + ((b-a)/nbins)
-		
+			x2f = x_mid + dx
 			c1f = cdf_fo[i2f]
 			c2f = cdf_fo[i2f + 1]
-		
 		else
-			x1f = max(x_mid - (1/nbins), 0)
+			x1f = max(x_mid - dx, 0)
 			x2f = x_mid
 			c1f = (i2f > 1) ? cdf_fo[i2f-1] : 0.0
 			c2f = cdf_fo[i2f]
-		
 		end
-	
 		cf = c1f + (c2f - c1f)*(x - x1f)/(x2f - x1f)
 		i2 = 0
 		for k = 1:nbins
-			if (cdf[k] .>= cf)
+			if (cdf[k] >= cf)
 				i2 = k
 				break
 			end
 		end
-		x2 = (i2 - 1)*(1/nbins) + 0.5/nbins
-		x1 = max(x2 - (1/nbins), 0)  
+		x2 = (i2 - 1)*dx + 0.5*dx + a
+		x1 = max(x2 - dx, 0)  
     	c1 = (i2 > 1) ? cdf[i2 - 1] : 0.0
 		c2 = cdf[i2]
 		Tx = (cf - c1)*(x2 - x1)/(c2 - c1) + x1
@@ -165,15 +159,15 @@ function tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins, a, b)
 	fi_sa[index] = Tx
  	return nothing
 end
-function transport(fo_sa, y, nsamples, nbins)
+function transport(fo_sa, y, nsamples, nbins, a, b)
 	fi_sa = CUDA.fill(0.0f0, nsamples)
-	a_temp, b_temp = get_fo_fi_cdfs(fo_sa, y, nsamples, nbins)	
-	cdf = CuArray(a_temp)
-	cdf_fo = CuArray(b_temp)
+	cdf_temp, cdf_fo_temp = get_fo_fi_cdfs(fo_sa, y, nsamples, nbins, a, b)	
+	cdf = CuArray(cdf_temp)
+	cdf_fo = CuArray(cdf_fo_temp)
 	threads = min(nsamples, 1024)
 	blocks = cld(nsamples, threads)
 	CUDA.@sync begin
-		@cuda threads=threads blocks=blocks tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins)
+		@cuda threads=threads blocks=blocks tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins, a, b)
 	end
 	return fi_sa	
 end
@@ -204,7 +198,7 @@ function forecast(samples, nsamples, ntime, s)
 	end
 	return nothing
 end
-function transport_filter(y, nsamples, ntime, ndtime, nbins, s)
+function transport_filter(y, nsamples, ntime, ndtime, nbins, s, a, b)
 	x = get_srb_samples(nsamples, 100, s)
 	Sx = CUDA.fill(0.0f0, nsamples)
 	for t = 1:ntime
@@ -212,7 +206,7 @@ function transport_filter(y, nsamples, ntime, ndtime, nbins, s)
 		if t==ntime
 			Sx .= x
 		end
-		x .= transport(x, y[t], nsamples, nbins)
+		x .= transport(x, y[t], nsamples, nbins, a, b)
 	end
 	return x, Sx
 end
@@ -229,22 +223,56 @@ function get_dx(x, dx, nsamples, s)
 	end
 	return nothing
 end
-function transport_filter_test(y, nsamples, ntime, ndtime, nbins, s)
+function put_sample_in_bin(x, rho, dx, nbins)
+	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
+	binx = Int(cld(x[index], dx))
+	rho[binx + (index-1)*nbins] += 1  
+	return nothing
+end
+function collate_rho(rho, rho_big, nsamples, nbins, dx)
+	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
+	for i = 1:nsamples
+		rho[index] += rho_big[(i-1)*nbins + index]/nsamples/dx
+	end
+	return nothing
+end
+function bin_samples(x, rho, nsamples, nbins, a, b)
+	rho_unfolded = CUDA.fill(0.0f0, nsamples*nbins)
+	threads = min(nsamples, 1024)
+	blocks = cld(nsamples, threads)
+	dx = (b-a)/nbins
+	CUDA.@sync begin
+		@cuda threads=threads blocks=blocks put_sample_in_bin(x, rho_unfolded, dx, nbins)
+	end
+	threads = min(nbins, 1024)
+	blocks = cld(nbins, threads)
+	@show threads, blocks
+	CUDA.@sync begin
+		@cuda threads=threads blocks=blocks collate_rho(rho, rho_unfolded, nsamples, nbins, dx)
+	end
+	return nothing
+end
+function transport_filter_test(y, nsamples, ntime, ndtime, nbins, s, a, b)
 	x = get_srb_samples(nsamples, 100, s)
 	Sx = CUDA.fill(0.0f0, nsamples)
+	rho_T = CUDA.fill(0.0f0, nbins)
+	rho_Tm1 = CUDA.fill(0.0f0, nbins)
 	#dx = CUDA.fill(0.0f0, nsamples)
 	for t = 1:ntime
 		if t==ntime
 			Sx .= x
+			bin_samples(Sx, rho_Tm1, nsamples, nbins, a, b)
 		end
 		forecast(x, nsamples, ndtime, s)
 		#if t==ntime
 		#	Sx .= x
 			#get_dx(x, dx, nsamples, s)
 		#end
-		x .= transport(x, y[t], nsamples, nbins)
+		x .= transport(x, y[t], nsamples, nbins, a, b)
+		@show t
 	end
-	return x, Sx
+	bin_samples(x, rho_T, nsamples, nbins, a, b)
+	return x, Sx, rho_Tm1, rho_T
 end
 function generate_obs(ntime, s)
 	x = rand()
