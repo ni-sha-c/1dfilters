@@ -2,15 +2,15 @@ using CUDA
 using Test
 using BenchmarkTools
 
-next(x, s) = (2*x + s*sin(16*x)/16) % 1
+#next(x, s) = (2*x + s*sin(16*x)/16) % 1
 #dnext(x, s) = abs(2 + s*cos(16*x))
 #d2next(x, s) = -16*s*sin(16*x)
-#function next(x, s)
-#	if x < 1
-#		return 4*x/(1 + s + sqrt((1+s)^2 - 4*s*x))
-#	end
-#	return 4*(2 - x)/(1 + s + sqrt((1+s)^2 - 4*s*(2-x)))
-#end
+function next(x, s)
+	if x < 1
+		return 4*x/(1 + s + sqrt((1+s)^2 - 4*s*x))
+	end
+	return 4*(2 - x)/(1 + s + sqrt((1+s)^2 - 4*s*(2-x)))
+end
 function dnext(x, s)
 	if x < 1
 		pden = sqrt((1+s)^2 - 4*s*x)
@@ -67,7 +67,6 @@ function get_emp_srb(nbins, ntime, nsamples, nrep, s, a, b)
 	threads = min(nsamples, 1024)
 	blocks = cld(nsamples, threads)
 
-	@show threads, blocks
 	for n = 1:nrep
 		CUDA.@sync begin
 			@cuda threads=threads blocks=blocks hist_single_orbit(rho, ntime, nbins, s, a, b)
@@ -79,7 +78,8 @@ end
 function bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples, sig, a, b)
 	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
     x = fo_sa[index]
-	bin_no = Int(cld(x-a, (b-a)/nbins)) 	
+	bin_no = Int(cld(x-a, (b-a)/nbins)) 
+	bin_no = (bin_no == 0) ? 1 : bin_no	
 	fo_gr[(index - 1)*nbins + bin_no] += 1
 	lkhd = exp(-(y-x)^2/(2*sig*sig))
 	#lkhd = abs(y-x) < sig ? 1.0 : 0.0
@@ -107,7 +107,6 @@ function get_fo_fi_cdfs(fo_sa, y, nsamples, nbins, a, b)
 	threads = min(nsamples, 1024)
 	blocks = cld(nsamples, threads)
 	sig = sig_obs
-	@show threads, blocks
 	CUDA.@sync begin
 			@cuda threads=threads blocks=blocks bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples, sig, a, b)
 	end
@@ -123,17 +122,16 @@ function tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins, a, b)
 	x = fo_sa[index]
 	dx = (b-a)/nbins
 	i2f = Int(cld(x-a, dx))
+	i2f = (i2f == 0) ? 1 : i2f
     x_mid = (i2f - 1)*dx + 0.5*dx + a
 	Tx = x
 	x1f, x2f = a, b
 	c1f, c2f = 0.0, 1.0
 	cf = 0.0
-	
-	if !(i2f == nbins)
-		if x > x_mid 
-			x1f = x_mid
+	if x > x_mid  
+		x1f = x_mid
+		c1f = cdf_fo[i2f]
 			x2f = x_mid + dx
-			c1f = cdf_fo[i2f]
 			c2f = cdf_fo[i2f + 1]
 		else
 			x1f = max(x_mid - dx, 0)
@@ -157,6 +155,7 @@ function tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins, a, b)
 		
 	end
 	fi_sa[index] = Tx
+	=#
  	return nothing
 end
 function transport(fo_sa, y, nsamples, nbins, a, b)
@@ -246,7 +245,6 @@ function bin_samples(x, rho, nsamples, nbins, a, b)
 	end
 	threads = min(nbins, 1024)
 	blocks = cld(nbins, threads)
-	@show threads, blocks
 	CUDA.@sync begin
 		@cuda threads=threads blocks=blocks collate_rho(rho, rho_unfolded, nsamples, nbins, dx)
 	end
@@ -265,12 +263,9 @@ function transport_filter_test(y, nsamples, ntime, ndtime, nbins, s, a, b)
 			bin_samples(Sx, rho_Tm1, nsamples, nbins, a1, b1)
 		end
 		forecast(x, nsamples, ndtime, s)
-		#if t==ntime
-		#	Sx .= x
-			#get_dx(x, dx, nsamples, s)
-		#end
-		x .= transport(x, y[t], nsamples, nbins, a, b)
-		@show t
+		a1, b1 = CUDA.minimum(x), CUDA.maximum(x)
+		#x .= transport(x, y[t], nsamples, nbins, a1, b1)
+		println("At time ", t, " samples are in (" , a1, ", ", b1, ")")
 	end
 	a2, b2 = CUDA.minimum(x), CUDA.maximum(x)
 	bin_samples(x, rho_T, nsamples, nbins, a2, b2)
