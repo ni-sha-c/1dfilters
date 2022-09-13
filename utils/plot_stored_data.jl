@@ -1,20 +1,21 @@
 using PyPlot
 using JLD
+next(x,s) = (2*x + s*sin(16*x)/16 + 2) % 1
 function plot_emp_den()
-		X = load("../data/rho_0.1_67bil.jld")
+		X = load("../data/rho_tent_0.1.jld")
 
 		rho = X["rho"]
 		nbins = length(rho)
-		x = LinRange(0, 1.0, nbins)
+		x = LinRange(0, 2.0, nbins)
 		fig, ax = subplots()
-		ax.plot(x, rho, ".", ms=20.0, label="s = 0.1")
+		ax.plot(x, rho/2.0, ".", ms=20.0, label="s = 0.1")
 		
-
-		X = load("../data/rho_0_67bil.jld")
+		
+		X = load("../data/rho_tent_0.05.jld")
 		rho = X["rho"]
 		nbins = length(rho)
-		x = LinRange(0, 1.0, nbins)
-		ax.plot(x, rho, ".", ms=20.0, label="s = 0")
+		x = LinRange(0, 2.0, nbins)
+		ax.plot(x, rho/2.0, ".", ms=20.0, label="s = 0.05")
 		
 		ax.set_xlabel("x", fontsize=30)
 		ax.set_ylabel("Empirical density", fontsize=30)
@@ -125,5 +126,56 @@ function plot_transport_with_slopes()
 		ax.grid(true)
 		#ax.legend(fontsize=30)
 end
+function transport_ansatz()
+		X = load("../data/transport.jld")
+		x = X["x"]
+		Tx = X["Sx"]
+		rho_x = X["rho_x"]
+		rho_Sx = X["rho_Sx"]
 
+		fig, ax = subplots()
+		nskip = 100
+		x = x[1:nskip:end]
+		Tx = Tx[1:nskip:end]
+		ax.plot(Tx, x, ".", ms=5.0, label="opt T")
+		ax.plot(Tx, Tx, "o", ms=5.0, label="identity")
+		ax.set_xlabel("x", fontsize=30)
+		ax.set_ylabel(L"T\circ \varphi(x)", fontsize=30)
+		ax.xaxis.set_tick_params(labelsize=30)
+		ax.yaxis.set_tick_params(labelsize=30)
+		ax.grid(true)
+		ax.legend(fontsize=30)
+	
+		a1, b1 = minimum(Tx), maximum(Tx)
+		a2, b2 = minimum(x), maximum(x)
+
+		nbins = size(rho_x)[1]
+		x1_gr = LinRange(a1, b1, nbins)
+		x2_gr = LinRange(a2, b2, nbins)
+
+
+		fig, ax = subplots()
+		ax.plot(x1_gr, rho_Sx, ".", ms=5.0, label=L"\pi_{T-1}", color="blue")
+		ax.fill_between(x1_gr, 0, rho_Sx, color="blue")
+		
+		ax.set_xlabel("x", fontsize=30)
+		ax.set_ylabel(L"\rho(x)", fontsize=30)
+		ax.xaxis.set_tick_params(labelsize=30)
+		ax.yaxis.set_tick_params(labelsize=30)
+		ax.grid(true)
+		ax.legend(fontsize=30)
+
+		fig, ax = subplots()
+		
+		ax.plot(x2_gr, rho_x, ".", ms=5.0, label=L"\pi_T", color="red")
+		ax.fill_between(x2_gr, 0, rho_x, color="red")
+
+		ax.set_xlabel("x", fontsize=30)
+		ax.set_ylabel(L"\rho(x)", fontsize=30)
+		ax.xaxis.set_tick_params(labelsize=30)
+		ax.yaxis.set_tick_params(labelsize=30)
+		ax.grid(true)
+		ax.legend(fontsize=30)
+
+end
 
