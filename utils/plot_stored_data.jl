@@ -1,6 +1,35 @@
 using PyPlot
 using JLD
 next(x,s) = (2*x + s*sin(16*x)/16 + 2) % 1
+function plot_map()
+	X = load("../data/map.jld")
+	notm = X["name"]
+	s = X["s"]
+	x = X["x"]
+	Fx = X["Fx"]
+	fig, ax = subplots()
+	ns = size(s)[1]
+	custom_lines_for_legend = []
+	cl = PyPlot.matplotlib.lines.Line2D
+	color_cycle = PyPlot.matplotlib.rcParams["axes.prop_cycle"]
+	colors = []
+	#extract colors
+	for clrs in color_cycle
+			push!(colors, clrs["color"])
+	end		
+	for i = 1:ns
+			ax.plot(x[:,i], Fx[:,i], ".", ms=1.0)
+			push!(custom_lines_for_legend, cl([0], [0], lw=4.0, color=colors[i], label="s = $(s[i])"))
+	end
+	ax.grid(true)
+	leg = ax.legend(handles=custom_lines_for_legend, fontsize=30)
+	ax.xaxis.set_tick_params(labelsize=30)
+	ax.yaxis.set_tick_params(labelsize=30)
+	ax.set_xlabel(L"x", fontsize=30)
+	ax.set_ylabel(L"\varphi(x)", fontsize=30)
+	ax.axis("scaled")
+	ax.set_title(notm, fontsize=30)
+end
 function plot_emp_den()
 		X = load("../data/rho_tent_0.1.jld")
 
