@@ -77,18 +77,24 @@ function get_emp_srb(nbins, ntime, nsamples, nrep, s, a, b)
 end
 function bin_fo_fi(fo_sa, fo_gr, fi_gr, y, nbins, nsamples, sig, a, b)
 	index = threadIdx().x + (blockIdx().x - 1)*blockDim().x
+
     x = fo_sa[index]
-	bin_no = Int(cld(x-a, (b-a)/nbins)) 
+
+	bin_no = Int(cld(x-a, (b-a)/nbins))
+
 	bin_no = (bin_no == 0) ? 1 : bin_no	
-	fo_gr[(index - 1)*nbins + bin_no] += 1
+
+	ind = (index - 1)*nbins + bin_no
+	fo_gr[ind] += 1
 	lkhd = exp(-(y-x)^2/(2*sig*sig))
 	#lkhd = abs(y-x) < sig ? 1.0 : 0.0
-	fi_gr[(index - 1)*nbins + bin_no] += lkhd
+	fi_gr[ind] += lkhd
 	return nothing
 end
 function post_process_fo_fi_cdfs(fo_gr, fi_gr, nbins)
 	cdf = zeros(Float32, nbins)
 	cdf_fo = zeros(Float32, nbins)
+
 
 	for i = 1:nbins
 		cdf[i] = sum(fi_gr[i:nbins:end])
@@ -131,31 +137,32 @@ function tran_lin_interp(fo_sa, fi_sa, cdf, cdf_fo, nbins, a, b)
 	if x > x_mid  
 		x1f = x_mid
 		c1f = cdf_fo[i2f]
+		if !(i2f==nbins)
 			x2f = x_mid + dx
 			c2f = cdf_fo[i2f + 1]
-		else
+		end
+	else
+		x2f = x_mid
+		c2f = cdf_fo[i2f]
+		if !(i2f==1)
 			x1f = max(x_mid - dx, 0)
-			x2f = x_mid
 			c1f = (i2f > 1) ? cdf_fo[i2f-1] : 0.0
-			c2f = cdf_fo[i2f]
-		end
-		cf = c1f + (c2f - c1f)*(x - x1f)/(x2f - x1f)
-		i2 = 0
-		for k = 1:nbins
-			if (cdf[k] >= cf)
-				i2 = k
-				break
-			end
-		end
-		x2 = (i2 - 1)*dx + 0.5*dx + a
-		x1 = max(x2 - dx, 0)  
-    	c1 = (i2 > 1) ? cdf[i2 - 1] : 0.0
-		c2 = cdf[i2]
-		Tx = (cf - c1)*(x2 - x1)/(c2 - c1) + x1
-		
+		end 
 	end
+	cf = c1f + (c2f - c1f)*(x - x1f)/(x2f - x1f)
+	i2 = 1
+	for k = 1:nbins
+		if (cdf[k] >= cf)
+			i2 = k
+			break
+		end
+	end
+	x2 = (i2 - 1)*dx + 0.5*dx + a
+	x1 = max(x2 - dx, a)  
+    c1 = (i2 > 1) ? cdf[i2 - 1] : 0.0
+	c2 = cdf[i2]
+	Tx = (i2 > 1) ? (cf - c1)*(x2 - x1)/(c2 - c1) + x1 : x
 	fi_sa[index] = Tx
-	=#
  	return nothing
 end
 function transport(fo_sa, y, nsamples, nbins, a, b)
@@ -255,7 +262,6 @@ function transport_filter_test(y, nsamples, ntime, ndtime, nbins, s, a, b)
 	Sx = CUDA.fill(0.0f0, nsamples)
 	rho_T = CUDA.fill(0.0f0, nbins)
 	rho_Tm1 = CUDA.fill(0.0f0, nbins)
-	#dx = CUDA.fill(0.0f0, nsamples)
 	for t = 1:ntime
 		if t==ntime
 			Sx .= x
@@ -264,8 +270,8 @@ function transport_filter_test(y, nsamples, ntime, ndtime, nbins, s, a, b)
 		end
 		forecast(x, nsamples, ndtime, s)
 		a1, b1 = CUDA.minimum(x), CUDA.maximum(x)
-		#x .= transport(x, y[t], nsamples, nbins, a1, b1)
-		println("At time ", t, " samples are in (" , a1, ", ", b1, ")")
+		x .= transport(x, y[t], nsamples, nbins, a1, b1)
+		println("At time ", t, " samples are in [", CUDA.minimum(x),", ", CUDA.maximum(x),"]") 
 	end
 	a2, b2 = CUDA.minimum(x), CUDA.maximum(x)
 	bin_samples(x, rho_T, nsamples, nbins, a2, b2)
